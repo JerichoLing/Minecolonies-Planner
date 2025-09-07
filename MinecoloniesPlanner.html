@@ -23,6 +23,7 @@
   // 创建时间 : 2025/09/07
   // 最后修改时间 : 2025/09/07
   // bilibili : https://space.bilibili.com/6416787
+  // github : https://github.com/JerichoLing
 -->
 <html lang="zh-CN">
 <head>
@@ -685,22 +686,25 @@
         ctx.fillRect(-w / 2, -l / 2, w, l);
 
         // entrance small block based on entranceEdge
-        const edge = building.entranceEdge || 'bottom';
-        const thickness = Math.max(4, 6 / camera.zoom);
-        ctx.fillStyle = 'yellow';
-        switch (edge) {
-            case 'top': 
-                ctx.fillRect(-w * 0.25, -l / 2, w * 0.5, thickness); 
-                break;
-            case 'bottom': 
-                ctx.fillRect(-w * 0.25, l / 2 - thickness, w * 0.5, thickness); 
-                break;
-            case 'left': 
-                ctx.fillRect(-w / 2, -l * 0.25, thickness, l * 0.5); 
-                break;
-            case 'right': 
-                ctx.fillRect(w / 2 - thickness, -l * 0.25, thickness, l * 0.5); 
-                break;
+        // 道路和城墙不显示入口标记
+        if (building.category !== '道路' && building.category !== '城墙') {
+            const edge = building.entranceEdge || 'bottom';
+            const thickness = Math.max(4, 6 / camera.zoom);
+            ctx.fillStyle = 'yellow';
+            switch (edge) {
+                case 'top': 
+                    ctx.fillRect(-w * 0.25, -l / 2, w * 0.5, thickness); 
+                    break;
+                case 'bottom': 
+                    ctx.fillRect(-w * 0.25, l / 2 - thickness, w * 0.5, thickness); 
+                    break;
+                case 'left': 
+                    ctx.fillRect(-w / 2, -l * 0.25, thickness, l * 0.5); 
+                    break;
+                case 'right': 
+                    ctx.fillRect(w / 2 - thickness, -l * 0.25, thickness, l * 0.5); 
+                    break;
+            }
         }
 
         // 如果建筑被选中（单选或多选），绘制黄色边框
