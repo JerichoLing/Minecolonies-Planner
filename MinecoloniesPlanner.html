@@ -21,7 +21,7 @@
   - xlsx.js 用于Excel文件解析
   // 作者: JerichoLing
   // 创建时间 : 2025/09/07
-  // 最后修改时间 : 2025/09/07
+  // 最后修改时间 : 2025/09/09
   // bilibili : https://space.bilibili.com/6416787
   // github : https://github.com/JerichoLing
 -->
@@ -159,9 +159,9 @@
           <p>尺寸: <span id="selected-size-w"></span> x <span id="selected-size-l"></span></p>
         </div>
         <div class="grid grid-cols-1 gap-2">
-          <button id="rotate-btn" class="bg-blue-600 hover:bg-blue-700 p-2 rounded w-full">旋转 90°</button>
-          <button id="duplicate-btn" class="bg-purple-600 hover:bg-purple-700 p-2 rounded w-full">复制建筑</button>
-          <button id="delete-btn" class="bg-red-600 hover:bg-red-700 p-2 rounded w-full">删除建筑</button>
+          <button id="rotate-btn" class="bg-blue-600 hover:bg-blue-700 p-2 rounded w-full">旋转 90° (R)</button>
+          <button id="duplicate-btn" class="bg-purple-600 hover:bg-purple-700 p-2 rounded w-full">复制建筑 (Shift+D)</button>
+          <button id="delete-btn" class="bg-red-600 hover:bg-red-700 p-2 rounded w-full">删除建筑 (X)</button>
         </div>
         <button id="unselect-btn" class="bg-gray-600 hover:bg-gray-700 p-2 rounded w-full mt-2">取消选择</button>
       </div>
@@ -177,6 +177,11 @@
           <input type="color" id="grid-color" value="#4a5568" />
         </div>
         <div class="flex items-center gap-3">
+          <label for="grid-opacity" class="whitespace-nowrap">网格线透明度</label>
+          <input id="grid-opacity" type="range" min="0.1" max="1" step="0.05" value="1" class="w-full" />
+          <span id="grid-opacity-val" class="text-sm text-gray-300">1.00</span>
+        </div>
+        <div class="flex items-center gap-3">
           <label for="font-scale" class="whitespace-nowrap">字体缩放</label>
           <input id="font-scale" type="range" min="0.2" max="2" step="0.05" value="1" class="w-full" />
           <span id="font-scale-val" class="text-sm text-gray-300">1.00×</span>
@@ -185,6 +190,11 @@
           <label for="building-opacity" class="whitespace-nowrap">建筑透明度</label>
           <input id="building-opacity" type="range" min="0.1" max="1" step="0.05" value="0.5" class="w-full" />
           <span id="building-opacity-val" class="text-sm text-gray-300">0.50</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <label for="building-stroke-opacity" class="whitespace-nowrap">建筑描边透明度</label>
+          <input id="building-stroke-opacity" type="range" min="0" max="1" step="0.05" value="1" class="w-full" />
+          <span id="building-stroke-opacity-val" class="text-sm text-gray-300">1.00</span>
         </div>
       </div>
 
@@ -206,6 +216,19 @@
           <input type="number" id="custom-length" placeholder="长" class="w-full p-2 bg-gray-700 rounded" />
         </div>
         <button id="add-custom-btn" class="bg-indigo-600 hover:bg-indigo-700 p-2 rounded w-full mt-2">添加建筑</button>
+      </div>
+      
+      <div class="space-y-2 border-t border-gray-700 pt-4 mt-4">
+        <h3 class="font-semibold text-lg">关于</h3>
+        <p class="text-sm text-gray-300">当前版本：1.1</p>
+        <div class="grid grid-cols-1 gap-2">
+          <a href="https://www.bilibili.com/video/BV1tCYGz7EYG/?share_source=copy_web&vd_source=08f27e6a7eff205814ff6982f241247a" target="_blank" class="bg-blue-600 hover:bg-blue-700 p-2 rounded text-center text-sm">
+            使用说明（视频）
+          </a>
+          <a href="https://pan.baidu.com/s/1x_q4j2m2_YiZWTdnxvYcaw?pwd=a53f" target="_blank" class="bg-green-600 hover:bg-green-700 p-2 rounded text-center text-sm">
+            更新链接（网盘）
+          </a>
+        </div>
       </div>
     </aside>
   </div>
@@ -237,12 +260,21 @@
         gridSize: 16,
         fontScale: 1,
         buildingOpacity: 0.5, // 建筑透明度，默认50%
+        buildingStrokeOpacity: 1.0, // 建筑描边透明度，默认100%
+        gridOpacity: 1, // 网格线透明度，默认100%
         undoStack: [],
         redoStack: [],
         clipboard: null,
         worldWasDragged: false,
         isShiftKeyPressed: false, // 用于跟踪Shift键是否被按下
-        halfGridEnabled: true // 默认启用半格精度移动
+        isSpaceKeyPressed: false, // 用于跟踪空格键是否被按下
+        halfGridEnabled: true, // 默认启用半格精度移动
+        isMoveMode: false, // G键移动模式
+        moveModeInitialState: null, // 用于存储G键移动前的状态
+        // 框选模式相关状态
+        isBoxSelectMode: false, // 是否处于框选模式
+        boxSelectStart: null, // 框选起始点
+        boxSelectEnd: null, // 框选结束点
       },
 
       elements: {},
@@ -278,6 +310,10 @@
           fontScaleVal: document.getElementById('font-scale-val'),
           buildingOpacity: document.getElementById('building-opacity'), // 建筑透明度滑块
           buildingOpacityVal: document.getElementById('building-opacity-val'), // 建筑透明度值显示
+          buildingStrokeOpacity: document.getElementById('building-stroke-opacity'), // 建筑描边透明度滑块
+          buildingStrokeOpacityVal: document.getElementById('building-stroke-opacity-val'), // 建筑描边透明度值显示
+          gridOpacity: document.getElementById('grid-opacity'), // 网格线透明度滑块
+          gridOpacityVal: document.getElementById('grid-opacity-val'), // 网格线透明度值显示
           ctx: null
         };
         this.elements.ctx = this.elements.canvas.getContext('2d');
@@ -360,6 +396,7 @@
         this.elements.canvas.addEventListener('mouseleave', this.onMouseUp.bind(this));
         this.elements.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
         this.elements.canvas.addEventListener('wheel', this.onWheel.bind(this), { passive: false });
+        this.elements.canvas.addEventListener('contextmenu', this.onContextMenu.bind(this));
 
         // controls
         this.elements.rotateBtn.addEventListener('click', () => { this.pushUndo(); this.rotateSelected(90); });
@@ -375,12 +412,30 @@
         this.elements.addCustomBtn.addEventListener('click', this.addCustomBuilding.bind(this));
         this.elements.excelFile.addEventListener('change', this.onExcelUpload.bind(this));
 
-        this.elements.fontScale.addEventListener('input', (e) => { this.state.fontScale = parseFloat(e.target.value); this.elements.fontScaleVal.textContent = this.state.fontScale.toFixed(2) + '×'; this.draw(); });
+        this.elements.fontScale.addEventListener('input', (e) => { 
+          this.state.fontScale = parseFloat(e.target.value); 
+          this.elements.fontScaleVal.textContent = this.state.fontScale.toFixed(2) + '×'; 
+          this.draw(); 
+        });
         
         // 建筑透明度控制
         this.elements.buildingOpacity.addEventListener('input', (e) => { 
           this.state.buildingOpacity = parseFloat(e.target.value); 
           this.elements.buildingOpacityVal.textContent = this.state.buildingOpacity.toFixed(2); 
+          this.draw(); 
+        });
+
+        // 网格线透明度控制
+        this.elements.gridOpacity.addEventListener('input', (e) => { 
+          this.state.gridOpacity = parseFloat(e.target.value); 
+          this.elements.gridOpacityVal.textContent = this.state.gridOpacity.toFixed(2); 
+          this.draw(); 
+        });
+
+        // 建筑描边透明度控制
+        this.elements.buildingStrokeOpacity.addEventListener('input', (e) => { 
+          this.state.buildingStrokeOpacity = parseFloat(e.target.value); 
+          this.elements.buildingStrokeOpacityVal.textContent = this.state.buildingStrokeOpacity.toFixed(2); 
           this.draw(); 
         });
 
@@ -394,9 +449,32 @@
           if (e.key === 'Shift') {
             this.state.isShiftKeyPressed = true;
           }
+          
+          // 检测空格键是否被按下
+          if (e.key === ' ') {
+            this.state.isSpaceKeyPressed = true;
+            // 阻止空格键的默认滚动行为
+            e.preventDefault();
+          }
+          
+          // 检测B键是否被按下，进入框选预备状态
+          if (e.key.toLowerCase() === 'b' && !this.state.isBoxSelectMode) {
+            e.preventDefault();
+            this.state.isBoxSelectMode = true;
+            this.elements.canvas.style.cursor = 'crosshair';
+          }
 
-          // 添加R键旋转选中建筑的功能
-          if (e.key.toLowerCase() === 'r' && !inInput) {
+          if (inInput) return; // a guard to stop shortcuts in inputs
+
+          // G键移动
+          if (e.key.toLowerCase() === 'g' && !this.state.isMoveMode) {
+              e.preventDefault();
+              if (this.state.selectedBuildingId || this.state.selectedBuildingIds.size > 0) {
+                  this.enterMoveMode();
+              }
+          }
+          // R键旋转
+          if (e.key.toLowerCase() === 'r') {
             e.preventDefault();
             if (this.state.selectedBuildingId || this.state.selectedBuildingIds.size > 0) {
               this.pushUndo();
@@ -404,8 +482,27 @@
             }
           }
 
-          if (e.ctrlKey && e.key.toLowerCase() === 'c' && !inInput) { e.preventDefault(); this.copySelected(); }
-          if (e.ctrlKey && e.key.toLowerCase() === 'v' && !inInput) { e.preventDefault(); this.pasteBuilding(); }
+          // X键删除
+          if (e.key.toLowerCase() === 'x') {
+            e.preventDefault();
+            if (this.state.selectedBuildingId || this.state.selectedBuildingIds.size > 0) {
+              this.pushUndo();
+              this.deleteSelected();
+            }
+          }
+
+          // Shift+D键复制粘贴
+          if (e.shiftKey && e.key.toLowerCase() === 'd') {
+            e.preventDefault();
+            if (this.state.selectedBuildingId || this.state.selectedBuildingIds.size > 0) {
+              this.pushUndo();
+              this.copySelected();
+              this.pasteBuilding();
+            }
+          }
+
+          if (e.ctrlKey && e.key.toLowerCase() === 'c') { e.preventDefault(); this.copySelected(); }
+          if (e.ctrlKey && e.key.toLowerCase() === 'v') { e.preventDefault(); this.pasteBuilding(); }
           if (e.ctrlKey && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); this.undo(); }
           if (e.ctrlKey && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); this.redo(); }
         });
@@ -414,6 +511,15 @@
           // 检测Shift键是否被释放
           if (e.key === 'Shift') {
             this.state.isShiftKeyPressed = false;
+          }
+          
+          // 检测空格键是否被释放
+          if (e.key === ' ') {
+            this.state.isSpaceKeyPressed = false;
+            // 恢复光标为grab
+            if (!this.state.isMoveMode && !this.state.isBoxSelectMode) {
+              this.elements.canvas.style.cursor = 'grab';
+            }
           }
         });
       },
@@ -424,7 +530,6 @@
         this.draw();
       },
 
-      // drop from palette
       onDrop(e) {
         e.preventDefault();
         const buildingJSON = e.dataTransfer.getData('application/json');
@@ -447,8 +552,36 @@
       },
 
       onMouseDown(e) {
+        if (this.state.isMoveMode) {
+            if (e.button === 0) { // Left-click
+                this.confirmMoveMode();
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+
         if (e.button !== 0) return;
         this.state.lastMousePos = this.getMousePos(e);
+        
+        // 检查是否处于框选模式
+        if (this.state.isBoxSelectMode) {
+          // 在框选模式下，鼠标左键按下开始框选
+          const worldPos = this.screenToWorld(this.state.lastMousePos.x, this.state.lastMousePos.y);
+          this.state.boxSelectStart = { x: worldPos.x, y: worldPos.y };
+          this.state.boxSelectEnd = { x: worldPos.x, y: worldPos.y };
+          e.preventDefault();
+          return;
+        }
+        
+        // 检查是否按住空格键，如果是则开始拖动画布
+        if (this.state.isSpaceKeyPressed) {
+          this.state.isDragging = true;
+          this.elements.canvas.style.cursor = 'grabbing';
+          e.preventDefault();
+          return;
+        }
+
         const worldPos = this.screenToWorld(this.state.lastMousePos.x, this.state.lastMousePos.y);
         const clickedBuilding = this.getBuildingAt(worldPos.x, worldPos.y);
 
@@ -506,42 +639,93 @@
       },
 
       onMouseUp(e) {
-        // 如果拖动了一个建筑
+        // 处理框选操作完成
+        if (this.state.isBoxSelectMode && this.state.boxSelectStart) {
+          this.completeBoxSelection();
+          e.preventDefault();
+          return;
+        }
+        
         if (this.state.isDraggingBuilding) {
           this.state.isDraggingBuilding = false;
           this.state.draggedBuilding.id = null;
           this.pushUndo();
         }
 
-        // 如果多选了多个建筑并进行了拖动
         if (this.state.selectedBuildingIds.size > 1 && this.state.draggedBuilding.id) {
           this.pushUndo(); // 拖动结束后记录一次撤销点
           this.state.draggedBuilding.id = null;
         }
 
         this.state.isDragging = false;
-        this.elements.canvas.style.cursor = 'grab';
+        // 只有在非移动模式且非空格键按下时才恢复光标为grab
+        if (!this.state.isMoveMode && !this.state.isSpaceKeyPressed && !this.state.isBoxSelectMode) {
+          this.elements.canvas.style.cursor = 'grab';
+        } else if (this.state.isSpaceKeyPressed) {
+          // 空格键按下时保持grabbing光标
+          this.elements.canvas.style.cursor = 'grabbing';
+        }
       },
 
       onMouseMove(e) {
         const mousePos = this.getMousePos(e);
         const worldPos = this.screenToWorld(mousePos.x, mousePos.y);
-        // 显示坐标时也使用半格精度
+        
+        // Always update coordinates display
         this.elements.coords.textContent = `坐标: ${this.roundToHalfGrid(worldPos.x).toFixed(1)}, ${this.roundToHalfGrid(worldPos.y).toFixed(1)}`;
 
-        if (this.state.isDraggingBuilding && this.state.draggedBuilding.id) {
+        // Handle box selection mode
+        if (this.state.isBoxSelectMode && this.state.boxSelectStart) {
+          const worldPos = this.screenToWorld(mousePos.x, mousePos.y);
+          this.state.boxSelectEnd = { x: worldPos.x, y: worldPos.y };
+          this.draw();
+          return;
+        }
+
+        // Handle G-key move mode
+        if (this.state.isMoveMode) {
+            const primaryBuilding = this.state.placedBuildings.find(b => b.id === this.state.selectedBuildingId);
+            if (primaryBuilding) {
+                const offset = this.state.moveModeInitialState.mouseOffset;
+                const newPrimaryX = this.roundToHalfGrid(worldPos.x - offset.x);
+                const newPrimaryY = this.roundToHalfGrid(worldPos.y - offset.y);
+                const deltaX = newPrimaryX - primaryBuilding.x;
+                const deltaY = newPrimaryY - primaryBuilding.y;
+
+                if (deltaX !== 0 || deltaY !== 0) {
+                    this.state.placedBuildings.forEach(b => {
+                        if (this.state.selectedBuildingIds.has(b.id)) {
+                            b.x += deltaX;
+                            b.y += deltaY;
+                        }
+                    });
+                    this.elements.selectedPosX.textContent = primaryBuilding.x.toFixed(1);
+                    this.elements.selectedPosY.textContent = primaryBuilding.y.toFixed(1);
+                    this.draw();
+                }
+            }
+            this.state.lastMousePos = mousePos; // Keep updating for re-triggering G-move if needed
+            return; // Exit early
+        }
+
+        // Handle dragging the canvas when space key is pressed
+        if (this.state.isDragging && this.state.isSpaceKeyPressed) {
+          const dx = mousePos.x - this.state.lastMousePos.x;
+          const dy = mousePos.y - this.state.lastMousePos.y;
+          this.state.camera.offsetX += dx;
+          this.state.camera.offsetY += dy;
+          this.draw();
+        // Handle dragging a building
+        } else if (this.state.isDraggingBuilding && this.state.draggedBuilding.id) {
           const building = this.state.placedBuildings.find(b => b.id === this.state.draggedBuilding.id);
           if (building) {
             const newX = worldPos.x - this.state.draggedBuilding.offsetX;
             const newY = worldPos.y - this.state.draggedBuilding.offsetY;
             
-            // 如果有多个建筑被选中，需要一起移动
             if (this.state.selectedBuildingIds.size > 1) {
-              // 使用半格精度计算
               const deltaX = this.roundToHalfGrid(newX) - building.x;
               const deltaY = this.roundToHalfGrid(newY) - building.y;
               
-              // 更新所有选中建筑的位置
               this.state.placedBuildings.forEach(b => {
                 if (this.state.selectedBuildingIds.has(b.id)) {
                   b.x += deltaX;
@@ -549,22 +733,24 @@
                 }
               });
             } else {
-              // 单个建筑移动，使用半格精度
               building.x = this.roundToHalfGrid(newX);
               building.y = this.roundToHalfGrid(newY);
-              this.elements.selectedPosX.textContent = building.x;
-              this.elements.selectedPosY.textContent = building.y;
             }
+            this.elements.selectedPosX.textContent = building.x.toFixed(1);
+            this.elements.selectedPosY.textContent = building.y.toFixed(1);
             this.draw();
           }
-        } else if (this.state.isDragging) {
+        // Handle dragging the canvas (original behavior when clicking on empty space)
+        } else if (this.state.isDragging && !this.state.isSpaceKeyPressed) {
           const dx = mousePos.x - this.state.lastMousePos.x;
           const dy = mousePos.y - this.state.lastMousePos.y;
           this.state.camera.offsetX += dx;
           this.state.camera.offsetY += dy;
-          this.state.lastMousePos = mousePos;
           this.draw();
         }
+        
+        // Crucial update for the next mouse event
+        this.state.lastMousePos = mousePos;
       },
 
       onWheel(e) {
@@ -580,6 +766,120 @@
         this.state.camera.offsetX += (worldAfter.x - worldBefore.x) * gs * this.state.camera.zoom;
         this.state.camera.offsetY += (worldAfter.y - worldBefore.y) * gs * this.state.camera.zoom;
         this.draw();
+      },
+
+      onContextMenu(e) {
+          e.preventDefault();
+          if (this.state.isMoveMode) {
+              this.cancelMoveMode();
+          }
+      },
+
+      // 完成框选操作
+      completeBoxSelection() {
+        if (!this.state.boxSelectStart || !this.state.boxSelectEnd) {
+          this.resetBoxSelection();
+          return;
+        }
+
+        // 计算框选区域
+        const minX = Math.min(this.state.boxSelectStart.x, this.state.boxSelectEnd.x);
+        const maxX = Math.max(this.state.boxSelectStart.x, this.state.boxSelectEnd.x);
+        const minY = Math.min(this.state.boxSelectStart.y, this.state.boxSelectEnd.y);
+        const maxY = Math.max(this.state.boxSelectStart.y, this.state.boxSelectEnd.y);
+
+        // 查找在框选区域内的建筑
+        const buildingsInBox = this.state.placedBuildings.filter(building => {
+          // 计算建筑中心点
+          const width = building.rotation % 180 === 0 ? building.width : building.length;
+          const length = building.rotation % 180 === 0 ? building.length : building.width;
+          const centerX = building.x + width / 2;
+          const centerY = building.y + length / 2;
+          
+          // 检查中心点是否在框选区域内
+          return centerX >= minX && centerX <= maxX && centerY >= minY && centerY <= maxY;
+        });
+
+        if (buildingsInBox.length > 0) {
+          // 如果按住Shift键，则将新选中的建筑添加到现有选择中
+          if (!this.state.isShiftKeyPressed) {
+            // 清空现有选择
+            this.state.selectedBuildingIds.clear();
+          }
+          
+          // 添加新选中的建筑
+          buildingsInBox.forEach(building => {
+            this.state.selectedBuildingIds.add(building.id);
+          });
+          
+          // 设置第一个选中的建筑为当前选中建筑
+          if (buildingsInBox.length > 0 && !this.state.selectedBuildingId) {
+            this.state.selectedBuildingId = buildingsInBox[0].id;
+            this.selectBuilding(buildingsInBox[0].id);
+          }
+          
+          this.draw();
+        }
+
+        // 重置框选状态
+        this.resetBoxSelection();
+      },
+
+      // 重置框选状态
+      resetBoxSelection() {
+        this.state.isBoxSelectMode = false;
+        this.state.boxSelectStart = null;
+        this.state.boxSelectEnd = null;
+        this.elements.canvas.style.cursor = 'grab';
+        this.draw();
+      },
+
+      enterMoveMode() {
+          if (this.state.isMoveMode || this.state.isDraggingBuilding || this.state.isDragging) return;
+
+          const selectedBuildings = this.state.placedBuildings.filter(b => this.state.selectedBuildingIds.has(b.id));
+          if (selectedBuildings.length === 0) return;
+
+          const primaryBuilding = this.state.placedBuildings.find(b => b.id === this.state.selectedBuildingId);
+          if (!primaryBuilding) return;
+
+          const worldPos = this.screenToWorld(this.state.lastMousePos.x, this.state.lastMousePos.y);
+
+          this.state.moveModeInitialState = {
+              buildings: JSON.parse(JSON.stringify(selectedBuildings)), // Deep copy for cancellation
+              mouseOffset: {
+                  x: worldPos.x - primaryBuilding.x,
+                  y: worldPos.y - primaryBuilding.y
+              }
+          };
+          this.state.isMoveMode = true;
+          this.elements.canvas.style.cursor = 'move';
+      },
+
+      confirmMoveMode() {
+          if (!this.state.isMoveMode) return;
+          this.state.isMoveMode = false;
+          this.state.moveModeInitialState = null;
+          this.pushUndo(); // Action is complete, save state
+          this.elements.canvas.style.cursor = 'grab';
+      },
+
+      cancelMoveMode() {
+          if (!this.state.isMoveMode) return;
+
+          // Revert building positions from the saved state
+          this.state.moveModeInitialState.buildings.forEach(originalBuilding => {
+              const currentBuilding = this.state.placedBuildings.find(b => b.id === originalBuilding.id);
+              if (currentBuilding) {
+                  currentBuilding.x = originalBuilding.x;
+                  currentBuilding.y = originalBuilding.y;
+              }
+          });
+
+          this.state.isMoveMode = false;
+          this.state.moveModeInitialState = null;
+          this.elements.canvas.style.cursor = 'grab';
+          this.draw();
       },
 
       draw() {
@@ -602,19 +902,56 @@
           this.drawRotationCenter();
         }
 
+        // 绘制框选区域
+        this.drawBoxSelection();
+
         ctx.restore();
       },
 
-      // 绘制旋转中心点
+      // 绘制框选区域
+      drawBoxSelection() {
+        if (!this.state.isBoxSelectMode || !this.state.boxSelectStart || !this.state.boxSelectEnd) {
+          return;
+        }
+
+        const { ctx } = this.elements;
+        const { camera, gridSize } = this.state;
+
+        // 计算框选区域
+        const minX = Math.min(this.state.boxSelectStart.x, this.state.boxSelectEnd.x);
+        const maxX = Math.max(this.state.boxSelectStart.x, this.state.boxSelectEnd.x);
+        const minY = Math.min(this.state.boxSelectStart.y, this.state.boxSelectEnd.y);
+        const maxY = Math.max(this.state.boxSelectStart.y, this.state.boxSelectEnd.y);
+
+        // 绘制半透明背景
+        ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+        ctx.fillRect(
+          minX * gridSize,
+          minY * gridSize,
+          (maxX - minX) * gridSize,
+          (maxY - minY) * gridSize
+        );
+
+        // 绘制边框
+        ctx.strokeStyle = 'yellow';
+        ctx.lineWidth = 2 / camera.zoom;
+        ctx.setLineDash([5 / camera.zoom, 5 / camera.zoom]); // 虚线样式
+        ctx.strokeRect(
+          minX * gridSize,
+          minY * gridSize,
+          (maxX - minX) * gridSize,
+          (maxY - minY) * gridSize
+        );
+        ctx.setLineDash([]); // 重置为实线
+      },
+
       drawRotationCenter() {
         const ctx = this.elements.ctx;
         const gridSize = this.state.gridSize;
         const camera = this.state.camera;
         
-        // 计算选中建筑的中心点
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         
-        // 先计算所有选中建筑的边界
         const selectedBuildings = this.state.placedBuildings.filter(b => this.state.selectedBuildingIds.has(b.id));
         if (selectedBuildings.length > 0) {
           selectedBuildings.forEach(b => {
@@ -626,12 +963,10 @@
             maxY = Math.max(maxY, b.y + l);
           });
           
-          // 计算中心点
           const centerX = (minX + maxX) / 2;
           const centerY = (minY + maxY) / 2;
           
-          // 绘制旋转中心点（一个网格单元格大小的方块）
-          ctx.fillStyle = 'rgba(255, 255, 0, 0.7)'; // 半透明黄色
+          ctx.fillStyle = 'rgba(255, 255, 0, 0.7)';
           ctx.fillRect(
             centerX * gridSize - gridSize/2, 
             centerY * gridSize - gridSize/2, 
@@ -639,7 +974,6 @@
             gridSize
           );
           
-          // 绘制中心点边框
           ctx.strokeStyle = 'yellow';
           ctx.lineWidth = 2 / camera.zoom;
           ctx.strokeRect(
@@ -654,7 +988,10 @@
       drawGrid() {
         const { ctx, canvas } = this.elements;
         const { camera, gridSize } = this.state;
-        ctx.strokeStyle = this.elements.gridColorPicker.value;
+        const gridColor = this.elements.gridColorPicker.value;
+        
+        // 绘制普通网格线
+        ctx.strokeStyle = this.applyAlphaToColor(gridColor, this.state.gridOpacity * 0.5); // 普通网格线使用一半的透明度
         ctx.lineWidth = 1 / camera.zoom;
 
         const view = { minX: -camera.offsetX / camera.zoom, minY: -camera.offsetY / camera.zoom, maxX: (canvas.width - camera.offsetX) / camera.zoom, maxY: (canvas.height - camera.offsetY) / camera.zoom };
@@ -664,6 +1001,24 @@
         ctx.beginPath();
         for (let x = startX; x < view.maxX; x += gridSize) { ctx.moveTo(x, view.minY); ctx.lineTo(x, view.maxY); }
         for (let y = startY; y < view.maxY; y += gridSize) { ctx.moveTo(view.minX, y); ctx.lineTo(view.maxX, y); }
+        ctx.stroke();
+        
+        // 绘制粗网格线（每16个单位）
+        ctx.strokeStyle = this.applyAlphaToColor(gridColor, this.state.gridOpacity); // 粗网格线使用完整的透明度设置
+        ctx.lineWidth = 2 / camera.zoom; // 更粗的线宽
+        ctx.beginPath();
+        const majorGridSize = gridSize * 16; // 每16个单位的粗网格
+        const majorStartX = Math.floor(view.minX / majorGridSize) * majorGridSize;
+        const majorStartY = Math.floor(view.minY / majorGridSize) * majorGridSize;
+        
+        for (let x = majorStartX; x < view.maxX; x += majorGridSize) { 
+          ctx.moveTo(x, view.minY); 
+          ctx.lineTo(x, view.maxY); 
+        }
+        for (let y = majorStartY; y < view.maxY; y += majorGridSize) { 
+          ctx.moveTo(view.minX, y); 
+          ctx.lineTo(view.maxX, y); 
+        }
         ctx.stroke();
       },
 
@@ -680,13 +1035,15 @@
         ctx.rotate((building.rotation || 0) * Math.PI / 180);
 
         const color = this.data.categoryColors[building.category] || this.data.categoryColors.default;
-        // 使用状态中的透明度值
         const transparentColor = this.hexToRgbA(color, this.state.buildingOpacity);
         ctx.fillStyle = transparentColor;
         ctx.fillRect(-w / 2, -l / 2, w, l);
 
-        // entrance small block based on entranceEdge
-        // 道路和城墙不显示入口标记
+        // 添加白色描边
+        ctx.strokeStyle = this.applyAlphaToColor('#ffffff', this.state.buildingStrokeOpacity);
+        ctx.lineWidth = 1 / camera.zoom;
+        ctx.strokeRect(-w / 2, -l / 2, w, l);
+
         if (building.category !== '道路' && building.category !== '城墙') {
             const edge = building.entranceEdge || 'bottom';
             const thickness = Math.max(4, 6 / camera.zoom);
@@ -707,7 +1064,6 @@
             }
         }
 
-        // 如果建筑被选中（单选或多选），绘制黄色边框
         if (building.id === this.state.selectedBuildingId || this.state.selectedBuildingIds.has(building.id)) {
             ctx.strokeStyle = 'yellow';
             ctx.lineWidth = 3 / camera.zoom;
@@ -726,10 +1082,17 @@
         ctx.restore();
       },
 
-      getMousePos(e) { const rect = this.elements.canvas.getBoundingClientRect(); return { x: e.clientX - rect.left, y: e.clientY - rect.top }; },
+      getMousePos(e) { 
+        const rect = this.elements.canvas.getBoundingClientRect();
+        const scaleX = this.elements.canvas.width / rect.width;
+        const scaleY = this.elements.canvas.height / rect.height;
+        return { 
+          x: (e.clientX - rect.left) * scaleX, 
+          y: (e.clientY - rect.top) * scaleY 
+        }; 
+      },
       screenToWorld(screenX, screenY) { const { camera, gridSize } = this.state; return { x: (screenX - camera.offsetX) / camera.zoom / gridSize, y: (screenY - camera.offsetY) / camera.zoom / gridSize }; },
 
-      // 颜色转换函数：将十六进制颜色转换为带透明度的RGBA颜色
       hexToRgbA(hex, alpha) {
         var r = parseInt(hex.slice(1, 3), 16),
             g = parseInt(hex.slice(3, 5), 16),
@@ -737,38 +1100,37 @@
         return `rgba(${r}, ${g}, ${b}, ${alpha})`;
       },
 
+      applyAlphaToColor(hexColor, alpha) {
+        // 限制alpha值在0-1之间
+        const clampedAlpha = Math.max(0, Math.min(1, alpha));
+        return this.hexToRgbA(hexColor, clampedAlpha);
+      },
+
       getBuildingAt(worldX, worldY) {
-        // 遍历建筑（从上到下，因为后面的建筑在数组中更靠后）
         for (let i = this.state.placedBuildings.length - 1; i >= 0; i--) {
           const building = this.state.placedBuildings[i];
           
-          // 获取建筑的尺寸（考虑旋转）
           const width = building.rotation % 180 === 0 ? building.width : building.length;
           const length = building.rotation % 180 === 0 ? building.length : building.width;
           
-          // 建筑的左上角坐标
           const x = building.x;
           const y = building.y;
           
-          // 建筑的中心点坐标
           const centerX = x + width / 2;
           const centerY = y + length / 2;
           
-          // 点相对于建筑中心的坐标
           const relX = worldX - centerX;
           const relY = worldY - centerY;
           
-          // 如果建筑有旋转，需要将点也进行反向旋转
           let rotatedX = relX;
           let rotatedY = relY;
           
           if (building.rotation) {
-            const angle = -building.rotation * Math.PI / 180; // 反向旋转
+            const angle = -building.rotation * Math.PI / 180;
             rotatedX = relX * Math.cos(angle) - relY * Math.sin(angle);
             rotatedY = relX * Math.sin(angle) + relY * Math.cos(angle);
           }
           
-          // 检查点是否在未旋转的矩形边界内
           if (rotatedX >= -width / 2 && rotatedX < width / 2 && 
               rotatedY >= -length / 2 && rotatedY < length / 2) {
             return building;
@@ -779,15 +1141,14 @@
 
       selectBuilding(id) {
         this.state.selectedBuildingId = id;
-        // 将选中的建筑添加到多选集合中
         this.state.selectedBuildingIds.add(id);
         
         const building = this.state.placedBuildings.find(b => b.id === id);
         if (building) {
           this.elements.selectionControls.classList.remove('hidden');
           this.elements.selectedBuildingName.textContent = building.name;
-          this.elements.selectedPosX.textContent = building.x;
-          this.elements.selectedPosY.textContent = building.y;
+          this.elements.selectedPosX.textContent = building.x.toFixed(1);
+          this.elements.selectedPosY.textContent = building.y.toFixed(1);
           this.elements.selectedSizeW.textContent = building.width;
           this.elements.selectedSizeL.textContent = building.length;
         }
@@ -796,7 +1157,6 @@
 
       unselectBuilding() { 
         this.state.selectedBuildingId = null; 
-        // 清空多选集合
         this.state.selectedBuildingIds.clear();
         this.elements.selectionControls.classList.add('hidden'); 
         this.draw(); 
@@ -807,12 +1167,9 @@
         
         if (!this.state.selectedBuildingId && this.state.selectedBuildingIds.size === 0) return;
         
-        // 如果有多个建筑被选中，以同一中心点旋转
         if (this.state.selectedBuildingIds.size > 1) {
-          // 计算选中建筑的中心点
           let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
           
-          // 先计算所有选中建筑的边界
           const selectedBuildings = this.state.placedBuildings.filter(b => this.state.selectedBuildingIds.has(b.id));
           selectedBuildings.forEach(b => {
             const w = b.rotation % 180 === 0 ? b.width : b.length;
@@ -823,32 +1180,25 @@
             maxY = Math.max(maxY, b.y + l);
           });
           
-          // 计算中心点
           const centerX = (minX + maxX) / 2;
           const centerY = (minY + maxY) / 2;
           
-          // 旋转每个建筑
           selectedBuildings.forEach(b => {
-            // 先旋转建筑本身
             b.rotation = (b.rotation || 0) + deg;
             b.rotation = b.rotation % 360;
             
-            // 交换宽高（仅在90度或270度旋转时）
             if (deg % 180 !== 0) {
               const tmp = b.width; b.width = b.length; b.length = tmp;
             }
             
-            // 计算建筑当前中心点
             const w = b.rotation % 180 === 0 ? b.width : b.length;
             const l = b.rotation % 180 === 0 ? b.length : b.width;
             const buildingCenterX = b.x + w / 2;
             const buildingCenterY = b.y + l / 2;
             
-            // 计算建筑中心点相对于整体中心点的位置
             const relX = buildingCenterX - centerX;
             const relY = buildingCenterY - centerY;
             
-            // 旋转这个相对位置（90度旋转）
             let newRelX, newRelY;
             if (deg === 90 || deg === -270) {
               newRelX = -relY;
@@ -864,22 +1214,18 @@
               newRelY = relY;
             }
             
-            // 计算新的建筑位置
             const newBuildingCenterX = centerX + newRelX;
             const newBuildingCenterY = centerY + newRelY;
             
-            // 更新建筑位置
             b.x = Math.round(newBuildingCenterX - w / 2);
             b.y = Math.round(newBuildingCenterY - l / 2);
           });
         } 
-        // 如果只有一个建筑被选中（传统单选）
         else {
           const b = this.state.placedBuildings.find(x => x.id === this.state.selectedBuildingId);
           if (b) {
             b.rotation = (b.rotation || 0) + deg;
             b.rotation = b.rotation % 360;
-            // swap width/length when rotating 90 or 270
             if (deg % 180 !== 0) {
               const tmp = b.width; b.width = b.length; b.length = tmp;
             }
@@ -891,7 +1237,6 @@
       deleteSelected() {
         if (!this.state.selectedBuildingId && this.state.selectedBuildingIds.size === 0) return;
         
-        // 如果有建筑被选中，删除所有选中的建筑
         this.state.placedBuildings = this.state.placedBuildings.filter(b => !this.state.selectedBuildingIds.has(b.id));
         
         this.unselectBuilding();
@@ -901,7 +1246,6 @@
       duplicateSelected() {
         this.pushUndo();
         
-        // 如果有建筑被选中，重复所有选中的建筑
         if (this.state.selectedBuildingIds.size > 0) {
           const selectedBuildings = this.state.placedBuildings.filter(b => this.state.selectedBuildingIds.has(b.id));
           const newBuildings = [];
@@ -914,8 +1258,7 @@
             newBuildings.push(clone);
           });
           
-          // 选中所有新重复的建筑
-          this.unselectBuilding(); // 先清空选择
+          this.unselectBuilding();
           newBuildings.forEach(b => this.state.selectedBuildingIds.add(b.id));
           if (newBuildings.length > 0) {
             this.state.selectedBuildingId = newBuildings[0].id;
@@ -926,12 +1269,10 @@
       },
 
       copySelected() {
-        // 如果有建筑被选中，复制所有选中的建筑
         if (this.state.selectedBuildingIds.size > 0) {
           this.state.clipboard = this.state.placedBuildings
             .filter(b => this.state.selectedBuildingIds.has(b.id))
             .map(b => JSON.parse(JSON.stringify(b)));
-          // 清除ID，避免重复
           this.state.clipboard.forEach(b => b.id = null);
         }
       },
@@ -941,7 +1282,6 @@
         
         this.pushUndo();
         
-        // 如果剪贴板中有建筑
         if (Array.isArray(this.state.clipboard)) {
           const newBuildings = [];
           this.state.clipboard.forEach(b => {
@@ -953,14 +1293,12 @@
             newBuildings.push(clone);
           });
           
-          // 选中所有粘贴的建筑
-          this.unselectBuilding(); // 先清空选择
+          this.unselectBuilding();
           newBuildings.forEach(b => this.state.selectedBuildingIds.add(b.id));
           if (newBuildings.length > 0) {
             this.state.selectedBuildingId = newBuildings[0].id;
           }
         } 
-        // 如果剪贴板中只有一个建筑（传统单个粘贴）
         else {
           const c = JSON.parse(JSON.stringify(this.state.clipboard));
           c.id = crypto.randomUUID();
@@ -1015,7 +1353,6 @@
         } else { alert('请输入有效的建筑信息！'); }
       },
 
-      // Excel import with robust yellow detection
       onExcelUpload(evt) {
         const file = evt.target.files[0];
         if (!file) return;
@@ -1048,14 +1385,11 @@
             const length = parseInt(lRaw.replace(/[^\d]/g, ''), 10);
             if (!(width > 0 && length > 0)) continue;
 
-            // 检查文本内容是否包含出入口标记
-            let entranceEdge = 'bottom'; // 默认值
+            let entranceEdge = 'bottom';
             
-            // 如果宽度单元格包含"出入口"，则出入口在底部
             if (wRaw.includes('出入口')) {
                 entranceEdge = 'bottom';
             } 
-            // 如果长度单元格包含"出入口"，则出入口在右侧
             else if (lRaw.includes('出入口')) {
                 entranceEdge = 'right';
             }
@@ -1113,7 +1447,6 @@
         } catch (e) { alert('导入失败！数据格式错误。'); console.error(e); }
       },
 
-      // 添加一个辅助函数用于将坐标四舍五入到0.5的倍数
       roundToHalfGrid(value) {
         return Math.round(value * 2) / 2;
       }
@@ -1123,3 +1456,4 @@
   </script>
 </body>
 </html>
+
