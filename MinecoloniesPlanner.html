@@ -1,8 +1,3 @@
-<script>
-  // 获取元素
-  const canvas = document.getElementById('canvas');
-  const coords = document.getElementById('coords');
-</script>
 <!DOCTYPE html>
 <!-- 
   Minecraft 模拟殖民地规划器
@@ -21,7 +16,7 @@
   - xlsx.js 用于Excel文件解析
   // 作者: JerichoLing
   // 创建时间 : 2025/09/07
-  // 最后修改时间 : 2025/09/09
+  // 最后修改时间 : 2025/09/10
   // bilibili : https://space.bilibili.com/6416787
   // github : https://github.com/JerichoLing
 -->
@@ -135,7 +130,7 @@
         <h2 class="text-xl font-bold">建筑模块</h2>
       </div>
       <div class="space-y-2 mb-4 text-xs">
-        <label class="block text-gray-300">导入Excel（列：分类, 名称, 宽, 长；将要标注的单元格填充为 <code>#FFFF00</code> 或在文本末尾写 "出入口"）</label>
+        <label class="block text-gray-300">导入Excel（列：分类, 名称, 宽, 长；在出入口方向文本末尾标注 "出入口"）</label>
         <input id="excel-file" type="file" accept=".xlsx,.xls" class="w-full text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-indigo-600 file:text-white hover:file:bg-indigo-700" />
         <div class="text-[10px] text-gray-400 leading-4">示例行：基础, 医院, 14, 20出入口 → 生成 14×20 医院，入口在"20"那一边</div>
       </div>
@@ -198,12 +193,32 @@
         </div>
       </div>
 
+      <div class="space-y-3 border-b border-gray-700 pb-4 mb-4">
+        <h3 class="font-semibold text-lg">画布底图</h3>
+        <div>
+          <label for="bg-image-input" class="text-sm text-gray-300 block mb-2">选择图片 (1像素=1网格)</label>
+          <input type="file" id="bg-image-input" accept="image/*" class="w-full text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-indigo-600 file:text-white hover:file:bg-indigo-700" />
+        </div>
+        <div class="flex items-center gap-3">
+          <label for="bg-image-opacity" class="whitespace-nowrap">底图透明度</label>
+          <input id="bg-image-opacity" type="range" min="0" max="1" step="0.05" value="0.5" class="w-full" />
+          <span id="bg-image-opacity-val" class="text-sm text-gray-300">0.50</span>
+        </div>
+        <div class="grid grid-cols-4 gap-2 pt-2">
+          <button id="bg-image-left" class="bg-gray-600 hover:bg-gray-700 p-1 rounded text-lg">←</button>
+          <button id="bg-image-up" class="bg-gray-600 hover:bg-gray-700 p-1 rounded text-lg">↑</button>
+          <button id="bg-image-down" class="bg-gray-600 hover:bg-gray-700 p-1 rounded text-lg">↓</button>
+          <button id="bg-image-right" class="bg-gray-600 hover:bg-gray-700 p-1 rounded text-lg">→</button>
+        </div>
+      </div>
+
       <div class="space-y-2 border-b border-gray-700 pb-4 mb-4">
         <h3 class="font-semibold text-lg">数据管理</h3>
         <div class="grid grid-cols-2 gap-2">
           <button id="export-btn" class="bg-green-600 hover:bg-green-700 p-2 rounded">导出规划</button>
           <button id="import-btn" class="bg-yellow-600 hover:bg-yellow-700 p-2 rounded">导入规划</button>
         </div>
+        <button id="export-image-btn" class="w-full bg-teal-600 hover:bg-teal-700 p-2 rounded mt-2">导出为图片</button>
         <textarea id="data-io" class="w-full h-24 bg-gray-700 rounded mt-2 p-2 hidden text-xs" placeholder="在此处粘贴您的规划数据..."></textarea>
       </div>
 
@@ -220,7 +235,7 @@
       
       <div class="space-y-2 border-t border-gray-700 pt-4 mt-4">
         <h3 class="font-semibold text-lg">关于</h3>
-        <p class="text-sm text-gray-300">当前版本：1.1</p>
+        <p class="text-sm text-gray-300">当前版本：2.0</p>
         <div class="grid grid-cols-1 gap-2">
           <a href="https://www.bilibili.com/video/BV1tCYGz7EYG/?share_source=copy_web&vd_source=08f27e6a7eff205814ff6982f241247a" target="_blank" class="bg-blue-600 hover:bg-blue-700 p-2 rounded text-center text-sm">
             使用说明（视频）
@@ -275,6 +290,10 @@
         isBoxSelectMode: false, // 是否处于框选模式
         boxSelectStart: null, // 框选起始点
         boxSelectEnd: null, // 框选结束点
+        backgroundImage: null,
+        backgroundImageOpacity: 0.5,
+        backgroundImageX: 0,
+        backgroundImageY: 0,
       },
 
       elements: {},
@@ -299,6 +318,7 @@
           gridColorPicker: document.getElementById('grid-color'),
           exportBtn: document.getElementById('export-btn'),
           importBtn: document.getElementById('import-btn'),
+          exportImageBtn: document.getElementById('export-image-btn'),
           dataIO: document.getElementById('data-io'),
           addCustomBtn: document.getElementById('add-custom-btn'),
           customName: document.getElementById('custom-name'),
@@ -314,6 +334,13 @@
           buildingStrokeOpacityVal: document.getElementById('building-stroke-opacity-val'), // 建筑描边透明度值显示
           gridOpacity: document.getElementById('grid-opacity'), // 网格线透明度滑块
           gridOpacityVal: document.getElementById('grid-opacity-val'), // 网格线透明度值显示
+          bgImageInput: document.getElementById('bg-image-input'),
+          bgImageOpacity: document.getElementById('bg-image-opacity'),
+          bgImageOpacityVal: document.getElementById('bg-image-opacity-val'),
+          bgImageUp: document.getElementById('bg-image-up'),
+          bgImageDown: document.getElementById('bg-image-down'),
+          bgImageLeft: document.getElementById('bg-image-left'),
+          bgImageRight: document.getElementById('bg-image-right'),
           ctx: null
         };
         this.elements.ctx = this.elements.canvas.getContext('2d');
@@ -409,6 +436,7 @@
 
         this.elements.exportBtn.addEventListener('click', this.exportData.bind(this));
         this.elements.importBtn.addEventListener('click', this.importData.bind(this));
+        this.elements.exportImageBtn.addEventListener('click', this.exportImage.bind(this));
         this.elements.addCustomBtn.addEventListener('click', this.addCustomBuilding.bind(this));
         this.elements.excelFile.addEventListener('change', this.onExcelUpload.bind(this));
 
@@ -438,6 +466,18 @@
           this.elements.buildingStrokeOpacityVal.textContent = this.state.buildingStrokeOpacity.toFixed(2); 
           this.draw(); 
         });
+
+        this.elements.bgImageInput.addEventListener('change', this.onBackgroundImageLoad.bind(this));
+        this.elements.bgImageOpacity.addEventListener('input', (e) => {
+          this.state.backgroundImageOpacity = parseFloat(e.target.value);
+          this.elements.bgImageOpacityVal.textContent = this.state.backgroundImageOpacity.toFixed(2);
+          this.draw();
+        });
+
+        this.elements.bgImageUp.addEventListener('click', () => this.moveBackgroundImage(0, -1));
+        this.elements.bgImageDown.addEventListener('click', () => this.moveBackgroundImage(0, 1));
+        this.elements.bgImageLeft.addEventListener('click', () => this.moveBackgroundImage(-1, 0));
+        this.elements.bgImageRight.addEventListener('click', () => this.moveBackgroundImage(1, 0));
 
         // keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -775,6 +815,51 @@
           }
       },
 
+      moveBackgroundImage(dx, dy) {
+        if (!this.state.backgroundImage) return;
+        this.state.backgroundImageX += dx;
+        this.state.backgroundImageY += dy;
+        this.draw();
+      },
+
+      onBackgroundImageLoad(e) {
+        const file = e.target.files[0];
+        if (!file) {
+          this.state.backgroundImage = null;
+          this.draw();
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            this.state.backgroundImage = img;
+            this.state.backgroundImageX = 0;
+            this.state.backgroundImageY = 0;
+            
+            const { camera, gridSize } = this.state;
+            const { canvas } = this.elements;
+            
+            // 图片导入后自动居中
+            const imageCenterX = (this.state.backgroundImageX + img.naturalWidth / 2) * gridSize;
+            const imageCenterY = (this.state.backgroundImageY + img.naturalHeight / 2) * gridSize;
+
+            camera.offsetX = canvas.width / 2 - imageCenterX * camera.zoom;
+            camera.offsetY = canvas.height / 2 - imageCenterY * camera.zoom;
+
+            this.draw();
+          };
+          img.onerror = () => {
+            alert('图片加载失败！');
+            this.state.backgroundImage = null;
+            this.draw();
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      },
+
       // 完成框选操作
       completeBoxSelection() {
         if (!this.state.boxSelectStart || !this.state.boxSelectEnd) {
@@ -800,28 +885,39 @@
           return centerX >= minX && centerX <= maxX && centerY >= minY && centerY <= maxY;
         });
 
-        if (buildingsInBox.length > 0) {
-          // 如果按住Shift键，则将新选中的建筑添加到现有选择中
-          if (!this.state.isShiftKeyPressed) {
-            // 清空现有选择
-            this.state.selectedBuildingIds.clear();
-          }
-          
-          // 添加新选中的建筑
-          buildingsInBox.forEach(building => {
-            this.state.selectedBuildingIds.add(building.id);
-          });
-          
-          // 设置第一个选中的建筑为当前选中建筑
-          if (buildingsInBox.length > 0 && !this.state.selectedBuildingId) {
-            this.state.selectedBuildingId = buildingsInBox[0].id;
-            this.selectBuilding(buildingsInBox[0].id);
-          }
-          
-          this.draw();
+        // BUG FIX: Start
+        // 如果没有按住Shift键，则清除之前的全部选择
+        if (!this.state.isShiftKeyPressed) {
+          this.state.selectedBuildingIds.clear();
+          this.state.selectedBuildingId = null;
         }
 
-        // 重置框选状态
+        // 将框选到的建筑加入选择集合
+        buildingsInBox.forEach(building => {
+          this.state.selectedBuildingIds.add(building.id);
+        });
+
+        // 如果选择集合不为空，但没有主选择项，则指定一个
+        if (this.state.selectedBuildingIds.size > 0 && !this.state.selectedBuildingId) {
+          this.state.selectedBuildingId = this.state.selectedBuildingIds.values().next().value;
+        }
+        
+        // 反之，如果选择集合为空，确保没有主选择项
+        if (this.state.selectedBuildingIds.size === 0) {
+            this.state.selectedBuildingId = null;
+        }
+
+        // 根据最终的选择状态更新UI
+        if (this.state.selectedBuildingId) {
+          // 如果有主选择项，则显示其详情面板（此函数会重绘）
+          this.selectBuilding(this.state.selectedBuildingId);
+        } else {
+          // 如果没有任何选择，则隐藏详情面板（此函数会重绘）
+          this.unselectBuilding();
+        }
+        // BUG FIX: End
+
+        // 重置框选状态（此函数会重绘以清除选择框）
         this.resetBoxSelection();
       },
 
@@ -894,6 +990,7 @@
         ctx.translate(camera.offsetX, camera.offsetY);
         ctx.scale(camera.zoom, camera.zoom);
 
+        this.drawBackgroundImage();
         this.drawGrid();
         this.state.placedBuildings.forEach(b => this.drawBuilding(b));
 
@@ -905,6 +1002,28 @@
         // 绘制框选区域
         this.drawBoxSelection();
 
+        ctx.restore();
+      },
+
+      drawBackgroundImage() {
+        if (!this.state.backgroundImage) return;
+
+        const { ctx } = this.elements;
+        const { gridSize } = this.state;
+        
+        ctx.save();
+        ctx.globalAlpha = this.state.backgroundImageOpacity;
+        
+        // 使用最近邻插值，使像素边缘清晰
+        ctx.imageSmoothingEnabled = false;
+        
+        const canvasWidth = this.state.backgroundImage.naturalWidth * gridSize;
+        const canvasHeight = this.state.backgroundImage.naturalHeight * gridSize;
+        const drawX = this.state.backgroundImageX * gridSize;
+        const drawY = this.state.backgroundImageY * gridSize;
+        
+        ctx.drawImage(this.state.backgroundImage, drawX, drawY, canvasWidth, canvasHeight);
+        
         ctx.restore();
       },
 
@@ -1065,9 +1184,17 @@
         }
 
         if (building.id === this.state.selectedBuildingId || this.state.selectedBuildingIds.has(building.id)) {
+            const lineWidth = 3 / camera.zoom;
             ctx.strokeStyle = 'yellow';
-            ctx.lineWidth = 3 / camera.zoom;
-            ctx.strokeRect(-w / 2, -l / 2, w, l);
+            ctx.lineWidth = lineWidth;
+            // 改为内描边
+            const inset = lineWidth / 2;
+            ctx.strokeRect(
+              -w / 2 + inset,
+              -l / 2 + inset,
+              w - lineWidth,
+              l - lineWidth
+            );
         }
 
         ctx.rotate(-((building.rotation || 0) * Math.PI / 180));
@@ -1447,6 +1574,139 @@
         } catch (e) { alert('导入失败！数据格式错误。'); console.error(e); }
       },
 
+      exportImage() {
+        let exportCanvas, exportCtx;
+        const bounds = { minX: 0, minY: 0, width: 0, height: 0 };
+        const { gridSize } = this.state;
+        const padding = gridSize * 4; // 4 grid units of padding for auto-bounds
+
+        if (this.state.backgroundImage) {
+            bounds.width = this.state.backgroundImage.naturalWidth * gridSize;
+            bounds.height = this.state.backgroundImage.naturalHeight * gridSize;
+            bounds.minX = this.state.backgroundImageX * gridSize;
+            bounds.minY = this.state.backgroundImageY * gridSize;
+        } else {
+            if (this.state.placedBuildings.length === 0) {
+                alert('画布上没有任何建筑可供导出！');
+                return;
+            }
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            this.state.placedBuildings.forEach(b => {
+                const w = b.rotation % 180 === 0 ? b.width : b.length;
+                const l = b.rotation % 180 === 0 ? b.length : b.width;
+                minX = Math.min(minX, b.x);
+                minY = Math.min(minY, b.y);
+                maxX = Math.max(maxX, b.x + w);
+                maxY = Math.max(maxY, b.y + l);
+            });
+
+            bounds.minX = minX * gridSize - padding;
+            bounds.minY = minY * gridSize - padding;
+            const exportMaxX = maxX * gridSize + padding;
+            const exportMaxY = maxY * gridSize + padding;
+            bounds.width = exportMaxX - bounds.minX;
+            bounds.height = exportMaxY - bounds.minY;
+        }
+
+        exportCanvas = document.createElement('canvas');
+        exportCanvas.width = bounds.width;
+        exportCanvas.height = bounds.height;
+        exportCtx = exportCanvas.getContext('2d');
+
+        // 1. Draw background color
+        exportCtx.fillStyle = this.elements.bgColorPicker.value;
+        exportCtx.fillRect(0, 0, bounds.width, bounds.height);
+
+        // 2. Setup transform to draw world objects relative to the bounds
+        exportCtx.save();
+        exportCtx.translate(-bounds.minX, -bounds.minY);
+
+        // 3. Draw Grid
+        const gridColor = this.elements.gridColorPicker.value;
+        exportCtx.strokeStyle = this.applyAlphaToColor(gridColor, this.state.gridOpacity * 0.5);
+        exportCtx.lineWidth = 1;
+        let startX = Math.floor(bounds.minX / gridSize) * gridSize;
+        let startY = Math.floor(bounds.minY / gridSize) * gridSize;
+        exportCtx.beginPath();
+        for (let x = startX; x < bounds.minX + bounds.width; x += gridSize) { exportCtx.moveTo(x, bounds.minY); exportCtx.lineTo(x, bounds.minY + bounds.height); }
+        for (let y = startY; y < bounds.minY + bounds.height; y += gridSize) { exportCtx.moveTo(bounds.minX, y); exportCtx.lineTo(bounds.minX + bounds.width, y); }
+        exportCtx.stroke();
+        
+        const majorGridSize = gridSize * 16;
+        exportCtx.strokeStyle = this.applyAlphaToColor(gridColor, this.state.gridOpacity);
+        exportCtx.lineWidth = 2;
+        startX = Math.floor(bounds.minX / majorGridSize) * majorGridSize;
+        startY = Math.floor(bounds.minY / majorGridSize) * majorGridSize;
+        exportCtx.beginPath();
+        for (let x = startX; x < bounds.minX + bounds.width; x += majorGridSize) { exportCtx.moveTo(x, bounds.minY); exportCtx.lineTo(x, bounds.minY + bounds.height); }
+        for (let y = startY; y < bounds.minY + bounds.height; y += majorGridSize) { exportCtx.moveTo(bounds.minX, y); exportCtx.lineTo(bounds.minX + bounds.width, y); }
+        exportCtx.stroke();
+        
+        // 4. Draw Background Image
+        if (this.state.backgroundImage) {
+            exportCtx.globalAlpha = this.state.backgroundImageOpacity;
+            exportCtx.imageSmoothingEnabled = false;
+            const img = this.state.backgroundImage;
+            const drawX = this.state.backgroundImageX * gridSize;
+            const drawY = this.state.backgroundImageY * gridSize;
+            exportCtx.drawImage(img, drawX, drawY, img.naturalWidth * gridSize, img.naturalHeight * gridSize);
+            exportCtx.globalAlpha = 1.0;
+        }
+
+        // 5. Draw Buildings
+        this.state.placedBuildings.forEach(building => {
+            exportCtx.save();
+            const w = building.rotation % 180 === 0 ? building.width * gridSize : building.length * gridSize;
+            const l = building.rotation % 180 === 0 ? building.length * gridSize : building.width * gridSize;
+            const x = building.x * gridSize;
+            const y = building.y * gridSize;
+
+            exportCtx.translate(x + w / 2, y + l / 2);
+            exportCtx.rotate((building.rotation || 0) * Math.PI / 180);
+
+            const color = this.data.categoryColors[building.category] || this.data.categoryColors.default;
+            exportCtx.fillStyle = this.hexToRgbA(color, this.state.buildingOpacity);
+            exportCtx.fillRect(-w / 2, -l / 2, w, l);
+
+            exportCtx.strokeStyle = this.applyAlphaToColor('#ffffff', this.state.buildingStrokeOpacity);
+            exportCtx.lineWidth = 1;
+            exportCtx.strokeRect(-w / 2, -l / 2, w, l);
+
+            if (building.category !== '道路' && building.category !== '城墙') {
+                const edge = building.entranceEdge || 'bottom';
+                const thickness = 6;
+                exportCtx.fillStyle = 'yellow';
+                switch (edge) {
+                    case 'top': exportCtx.fillRect(-w * 0.25, -l / 2, w * 0.5, thickness); break;
+                    case 'bottom': exportCtx.fillRect(-w * 0.25, l / 2 - thickness, w * 0.5, thickness); break;
+                    case 'left': exportCtx.fillRect(-w / 2, -l * 0.25, thickness, l * 0.5); break;
+                    case 'right': exportCtx.fillRect(w / 2 - thickness, -l * 0.25, thickness, l * 0.5); break;
+                }
+            }
+            
+            exportCtx.rotate(-((building.rotation || 0) * Math.PI / 180));
+            exportCtx.fillStyle = 'white';
+            const base = Math.min(w, l) * 0.28;
+            const fontSize = base * this.state.fontScale;
+            exportCtx.font = `bold ${Math.max(8, fontSize)}px sans-serif`;
+            exportCtx.textAlign = 'center';
+            exportCtx.textBaseline = 'middle';
+            exportCtx.fillText(building.name.substring(0, 3), 0, 0);
+
+            exportCtx.restore();
+        });
+        
+        exportCtx.restore();
+
+        // 6. Trigger Download
+        const link = document.createElement('a');
+        link.download = 'minecolonies-plan.png';
+        link.href = exportCanvas.toDataURL('image/png');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      },
+
       roundToHalfGrid(value) {
         return Math.round(value * 2) / 2;
       }
@@ -1456,4 +1716,8 @@
   </script>
 </body>
 </html>
+
+
+
+
 
